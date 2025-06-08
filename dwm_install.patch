@@ -1,0 +1,148 @@
+--- dwm_install.sh.orig	2025-01-01 00:00:00.000000000 +0000
++++ dwm_install.sh	2025-01-01 00:00:00.000000000 +0000
+@@ -134,10 +134,10 @@
+     local packages=(
+         build-essential git curl wget
+         libx11-dev libxft-dev libxinerama-dev libxrandr-dev
+         libx11-xcb-dev libxcb1-dev libxcb-util0-dev
+-        xcb-util-wm xcb-util-keysyms xcb-util-cursor
+-        xcb-util-image xcb-util-renderutil xcb-util-xrm
++        libxcb-util-dev libxcb-keysyms1-dev libxcb-cursor-dev
++        libxcb-image0-dev libxcb-render-util0-dev libxcb-xrm-dev
+         tint2 feh alsa-utils picom lxappearance lxsession
+         dunst thunar fonts-noto fonts-font-awesome xorg xinit
+     )
+     
+     if ! apt install -y "${packages[@]}"; then
+@@ -145,25 +145,13 @@
+     fi
+ 
+-    # Detect distribution for package-specific installations
+-    local distro="unknown"
+-    if [[ -f /etc/os-release ]]; then
+-        source /etc/os-release
+-        distro="$ID"
+-    fi
+-
+-    log "INFO" "Detected distribution: $distro"
+-
+-    # Install volumeicon based on distribution
++    # Install volumeicon (try different package names)
+     log "INFO" "Installing volumeicon..."
+-    case "$distro" in
+-        ubuntu|debian)
+-            apt install -y volumeicon-alsa || apt install -y volumeicon || log "WARN" "Could not install volumeicon"
+-            ;;
+-        *)
+-            apt install -y volumeicon || apt install -y volumeicon-alsa || log "WARN" "Could not install volumeicon"
+-            ;;
+-    esac
++    if ! apt install -y volumeicon-alsa 2>/dev/null; then
++        if ! apt install -y volumeicon 2>/dev/null; then
++            log "WARN" "Could not install volumeicon"
++        fi
++    fi
+ 
+     # Try to install nerd fonts (may not be available on all systems)
+     log "INFO" "Attempting to install Nerd Fonts..."
+@@ -224,7 +212,7 @@
+     
+     if [[ ! -d "$scripts_dir" ]] || [[ -z "$(ls -A "$scripts_dir" 2>/dev/null)" ]]; then
+         log "WARN" "No scripts found to install"
+         return 0
+     fi
+     
+-    # Copy scripts to /usr/bin/ (changed from /usr/local/bin/ for system-wide access)
++    # Copy scripts to /usr/bin/
+     for script in "$scripts_dir"/*; do
+         if [[ -f "$script" ]]; then
+             local script_name=$(basename "$script")
+@@ -456,7 +444,22 @@
+ 
+ # Main installation function
+ complete_installation() {
+     log "INFO" "Completing installation steps..."
++    
++    # Build and install components
++    local components=("dwm" "slstatus" "st" "dmenu")
++    for component in "${components[@]}"; do
++        build_component "$component"
++    done
++    
++    # Install scripts
++    install_scripts
++    
++    # Setup systemd services
++    setup_systemd_services
++    
++    # Setup user configuration
++    setup_user_config
++    
++    # Install desktop entry
++    install_desktop_entry
++    
++    # Setup display manager
++    setup_display_manager
++    
++    # Setup wallpapers
++    setup_wallpapers
++    
++    # Update fonts
++    update_fonts
++    
++    log "INFO" "Installation completed successfully!"
++    log "INFO" "You can now log out and select DWM from your display manager"
++    log "INFO" "Or use 'startx' if no display manager was installed"
+ }
+-    
+-    # Build and install components
+-    local components=("dwm" "slstatus" "st" "dmenu")
+-    for component in "${components[@]}"; do
+-        build_component "$component"
+-    done
+-    
+-    # Install scripts
+-    install_scripts
+-    
+-    # Setup systemd services
+-    setup_systemd_services
+-    
+-    # Setup user configuration
+-    setup_user_config
+-    
+-    # Install desktop entry
+-    install_desktop_entry
+-    
+-    # Setup display manager
+-    setup_display_manager
+-    
+-    # Setup wallpapers
+-    setup_wallpapers
+-    
+-    # Update fonts
+-    update_fonts
+-    
+-    log "INFO" "Installation completed successfully!"
+-    log "INFO" "You can now log out and select DWM from your display manager"
+-    log "INFO" "Or use 'startx' if no display manager was installed"
+-}
+ 
+ # Main function
+ main() {
+     log "INFO" "=== DWM Installation Started ==="
+     
+     # Pre-installation checks
+     check_dependencies
+     validate_repository
+     
+     # System installation
++    install_packages
++    
++    # Complete installation
++    complete_installation
++    
++    log "INFO" "=== DWM Installation Complete ==="
+ }
++
++# Run main function
++main "$@"
