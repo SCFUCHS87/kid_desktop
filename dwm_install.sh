@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
 # DWM Desktop Environment Installer Script
 # This script installs DWM, slstatus, st, dmenu and configures a complete desktop environment
@@ -232,7 +232,7 @@ apply_dwm_patches() {
             ((patch_count++))
             log "INFO" "Applying patch: $(basename "$patch")"
             
-            if patch -p1 < "$patch"; then
+            if patch -p1 < "$patch" 2>/dev/null; then
                 log "INFO" "Successfully applied patch: $(basename "$patch")"
                 ((successful_patches++))
             else
@@ -265,7 +265,7 @@ install_scripts() {
             local script_name=$(basename "$script")
             log "INFO" "Installing $script_name to /usr/bin/"
             
-            if cp "$script" "/usr/bin/$script_name"; then
+            if cp "$script" "/usr/bin/$script_name" 2>/dev/null; then
                 chmod +x "/usr/bin/$script_name"
                 log "INFO" "Successfully installed $script_name"
             else
@@ -285,7 +285,7 @@ install_wallpaper_script() {
     if [[ -f "$wallpaper_script" ]]; then
         log "INFO" "Installing wallpaper resolution script to /usr/bin/"
         
-        if cp "$wallpaper_script" /usr/bin/set_wallpaper_resolution.sh; then
+        if cp "$wallpaper_script" /usr/bin/set_wallpaper_resolution.sh 2>/dev/null; then
             chmod +x /usr/bin/set_wallpaper_resolution.sh
             log "INFO" "Wallpaper script installed successfully to /usr/bin/"
         else
@@ -304,7 +304,7 @@ setup_systemd_services() {
     
     local service_file="$SCRIPT_DIR/etc/systemd/user/dwm-session.service"
     if [[ -f "$service_file" ]]; then
-        if cp "$service_file" /etc/systemd/user/; then
+        if cp "$service_file" /etc/systemd/user/ 2>/dev/null; then
             log "INFO" "Systemd service file installed"
         else
             error_exit "Failed to copy systemd service file"
@@ -336,6 +336,9 @@ setup_user_config() {
         fi
     done
     
+    # Ensure .config directory exists and has correct ownership
+    sudo -u "$REAL_USER" mkdir -p "$REAL_HOME/.config"
+    
     # Copy configuration files
     local config_source="$SCRIPT_DIR/config"
     
@@ -363,6 +366,12 @@ setup_user_config() {
 setup_display_manager() {
     log "INFO" "Setting up display manager..."
     
+    # Check if running in non-interactive mode
+    if [[ ! -t 0 ]]; then
+        log "INFO" "Non-interactive mode detected, skipping display manager setup"
+        return 0
+    fi
+    
     echo "Please choose a display manager:"
     echo "1) lightdm (recommended)"
     echo "2) sddm"
@@ -373,8 +382,8 @@ setup_display_manager() {
     case "$display_manager_choice" in
         1)
             log "INFO" "Installing lightdm..."
-            if apt install -y lightdm lightdm-gtk-greeter; then
-                systemctl enable lightdm
+            if apt install -y lightdm lightdm-gtk-greeter 2>/dev/null; then
+                systemctl enable lightdm 2>/dev/null || log "WARN" "Failed to enable lightdm"
                 log "INFO" "lightdm installed and enabled"
             else
                 error_exit "Failed to install lightdm"
@@ -382,8 +391,8 @@ setup_display_manager() {
             ;;
         2)
             log "INFO" "Installing sddm..."
-            if apt install -y sddm; then
-                systemctl enable sddm
+            if apt install -y sddm 2>/dev/null; then
+                systemctl enable sddm 2>/dev/null || log "WARN" "Failed to enable sddm"
                 log "INFO" "sddm installed and enabled"
             else
                 error_exit "Failed to install sddm"
@@ -417,7 +426,7 @@ install_desktop_entry() {
     local desktop_file="$SCRIPT_DIR/usr/share/xsessions/dwm.desktop"
     
     if [[ -f "$desktop_file" ]]; then
-        if cp "$desktop_file" /usr/share/xsessions/; then
+        if cp "$desktop_file" /usr/share/xsessions/ 2>/dev/null; then
             log "INFO" "DWM desktop entry installed successfully"
         else
             error_exit "Failed to copy DWM desktop entry"
@@ -445,6 +454,12 @@ setup_wallpapers() {
     local wallpaper_dir="$REAL_HOME/Pictures/wallpapers"
     sudo -u "$REAL_USER" mkdir -p "$wallpaper_dir"
     
+    # Check if running in non-interactive mode
+    if [[ ! -t 0 ]]; then
+        log "INFO" "Non-interactive mode detected, skipping wallpaper setup"
+        return 0
+    fi
+    
     echo "Please choose a wallpaper setup option:"
     echo "1) Use your own wallpapers from ~/Pictures/wallpapers/"
     echo "2) Download wallpapers from JaKooLit's Wallpaper Bank"
@@ -461,7 +476,7 @@ setup_wallpapers() {
             log "INFO" "Downloading wallpapers from JaKooLit's Wallpaper Bank..."
             local temp_dir="$wallpaper_dir/temp_download"
             
-            if sudo -u "$REAL_USER" git clone https://github.com/JaKooLit/Wallpaper-Bank.git "$temp_dir"; then
+            if sudo -u "$REAL_USER" git clone https://github.com/JaKooLit/Wallpaper-Bank.git "$temp_dir" 2>/dev/null; then
                 log "INFO" "Wallpapers downloaded successfully"
                 sudo -u "$REAL_USER" cp -r "$temp_dir"/* "$wallpaper_dir/"
                 sudo -u "$REAL_USER" rm -rf "$temp_dir"
@@ -474,7 +489,7 @@ setup_wallpapers() {
             log "INFO" "Downloading ukiyo-e backgrounds from SCFUCHS87..."
             local temp_dir="$wallpaper_dir/temp_download"
             
-            if sudo -u "$REAL_USER" git clone https://github.com/SCFUCHS87/ukiyo-e_backgrounds.git "$temp_dir"; then
+            if sudo -u "$REAL_USER" git clone https://github.com/SCFUCHS87/ukiyo-e_backgrounds.git "$temp_dir" 2>/dev/null; then
                 log "INFO" "Ukiyo-e backgrounds downloaded successfully"
                 sudo -u "$REAL_USER" cp -r "$temp_dir"/* "$wallpaper_dir/"
                 sudo -u "$REAL_USER" rm -rf "$temp_dir"
@@ -528,7 +543,7 @@ set_fallback_wallpaper() {
     if [[ -n "$selected_wallpaper" ]]; then
         log "INFO" "Setting fallback wallpaper: $(basename "$selected_wallpaper")"
         if command_exists feh; then
-            sudo -u "$REAL_USER" DISPLAY=:0 feh --bg-scale "$selected_wallpaper" 2>/dev/null || log "WARN" "Failed to set wallpaper with feh"
+            sudo -u "$REAL_USER" bash -c "export DISPLAY=:0; feh --bg-scale '$selected_wallpaper'" 2>/dev/null || log "WARN" "Failed to set wallpaper with feh"
         else
             log "WARN" "feh not available for setting wallpaper"
         fi
@@ -540,7 +555,7 @@ set_fallback_wallpaper() {
 # Update font cache
 update_fonts() {
     log "INFO" "Updating font cache..."
-    if fc-cache -fv; then
+    if fc-cache -fv 2>/dev/null; then
         log "INFO" "Font cache updated successfully"
     else
         log "WARN" "Failed to update font cache, continuing..."
@@ -548,6 +563,43 @@ update_fonts() {
 }
 
 # Main installation function
+complete_installation() {
+    log "INFO" "Completing installation steps..."
+}
+    
+    # Build and install components
+    local components=("dwm" "slstatus" "st" "dmenu")
+    for component in "${components[@]}"; do
+        build_component "$component"
+    done
+    
+    # Install scripts
+    install_scripts
+    
+    # Setup systemd services
+    setup_systemd_services
+    
+    # Setup user configuration
+    setup_user_config
+    
+    # Install desktop entry
+    install_desktop_entry
+    
+    # Setup display manager
+    setup_display_manager
+    
+    # Setup wallpapers
+    setup_wallpapers
+    
+    # Update fonts
+    update_fonts
+    
+    log "INFO" "Installation completed successfully!"
+    log "INFO" "You can now log out and select DWM from your display manager"
+    log "INFO" "Or use 'startx' if no display manager was installed"
+}
+
+# Main function
 main() {
     log "INFO" "=== DWM Installation Started ==="
     
