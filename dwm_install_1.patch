@@ -2,7 +2,7 @@ diff --git a/dwm_install.sh b/dwm_install.sh
 index e69de29..a1b2c3d 100755
 --- a/dwm_install.sh
 +++ b/dwm_install.sh
-@@ -1,0 +1,82 @@
+@@ -1,0 +1,79 @@
 +#!/bin/bash
 +
 +# Set user environment if needed
