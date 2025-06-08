@@ -1,30 +1,12 @@
-From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
-From: Fix Script <fix@example.com>
-Date: Sun, 8 Jun 2025 12:00:00 +0000
-Subject: [PATCH] Fix DWM installation script issues
-
-- Complete the main() function that was missing installation calls
-- Add proper error handling and output redirection
-- Support non-interactive mode for CI/CD environments
-- Fix environment variable handling for wallpaper setting
-- Add better systemctl error handling
-- Ensure proper directory creation and permissions
-
----
- dwm_install.sh | 89 ++++++++++++++++++++++++++++++++++++++++++++------
- 1 file changed, 79 insertions(+), 10 deletions(-)
-
-diff --git a/dwm_install.sh b/dwm_install.sh
-index 1234567..abcdefg 100755
---- a/dwm_install.sh
-+++ b/dwm_install.sh
+--- dwm_install.sh.orig	2025-06-08 12:00:00.000000000 +0000
++++ dwm_install.sh	2025-06-08 12:00:01.000000000 +0000
 @@ -1,4 +1,4 @@
 -#!/usr/bin/env bash
 +#!/bin/bash
  
  # DWM Desktop Environment Installer Script
  # This script installs DWM, slstatus, st, dmenu and configures a complete desktop environment
-@@ -187,7 +187,7 @@ apply_dwm_patches() {
+@@ -187,7 +187,7 @@
      
      for patch in "$patches_dir"/*.diff; do
          if [[ -f "$patch" ]]; then
@@ -36,7 +18,7 @@ index 1234567..abcdefg 100755
                  log "INFO" "Successfully applied patch: $(basename "$patch")"
                  ((successful_patches++))
              else
-@@ -218,7 +218,7 @@ install_scripts() {
+@@ -218,7 +218,7 @@
              local script_name=$(basename "$script")
              log "INFO" "Installing $script_name to /usr/bin/"
              
@@ -45,7 +27,7 @@ index 1234567..abcdefg 100755
                  chmod +x "/usr/bin/$script_name"
                  log "INFO" "Successfully installed $script_name"
              else
-@@ -235,7 +235,7 @@ install_wallpaper_script() {
+@@ -235,7 +235,7 @@
      if [[ -f "$wallpaper_script" ]]; then
          log "INFO" "Installing wallpaper resolution script to /usr/bin/"
          
@@ -54,7 +36,7 @@ index 1234567..abcdefg 100755
              chmod +x /usr/bin/set_wallpaper_resolution.sh
              log "INFO" "Wallpaper script installed successfully to /usr/bin/"
          else
-@@ -253,7 +253,7 @@ setup_systemd_services() {
+@@ -253,7 +253,7 @@
      
      local service_file="$SCRIPT_DIR/etc/systemd/user/dwm-session.service"
      if [[ -f "$service_file" ]]; then
@@ -63,7 +45,7 @@ index 1234567..abcdefg 100755
              log "INFO" "Systemd service file installed"
          else
              error_exit "Failed to copy systemd service file"
-@@ -283,6 +283,9 @@ setup_user_config() {
+@@ -283,6 +283,9 @@
          fi
      done
      
@@ -73,7 +55,7 @@ index 1234567..abcdefg 100755
      # Copy configuration files
      local config_source="$SCRIPT_DIR/config"
      
-@@ -310,6 +313,12 @@ setup_user_config() {
+@@ -310,6 +313,12 @@
  # Setup display manager
  setup_display_manager() {
      log "INFO" "Setting up display manager..."
@@ -86,7 +68,7 @@ index 1234567..abcdefg 100755
      
      echo "Please choose a display manager:"
      echo "1) lightdm (recommended)"
-@@ -320,21 +329,21 @@ setup_display_manager() {
+@@ -320,21 +329,21 @@
      case "$display_manager_choice" in
          1)
              log "INFO" "Installing lightdm..."
@@ -119,7 +101,7 @@ index 1234567..abcdefg 100755
                  log "INFO" "gdm3 installed and enabled"
              else
                  error_exit "Failed to install gdm3"
-@@ -357,7 +366,7 @@ install_desktop_entry() {
+@@ -357,7 +366,7 @@
      local desktop_file="$SCRIPT_DIR/usr/share/xsessions/dwm.desktop"
      
      if [[ -f "$desktop_file" ]]; then
@@ -128,7 +110,7 @@ index 1234567..abcdefg 100755
              log "INFO" "DWM desktop entry installed successfully"
          else
              error_exit "Failed to copy DWM desktop entry"
-@@ -380,6 +389,12 @@ setup_wallpapers() {
+@@ -380,6 +389,12 @@
      # Create wallpapers directory
      local wallpaper_dir="$REAL_HOME/Pictures/wallpapers"
      sudo -u "$REAL_USER" mkdir -p "$wallpaper_dir"
@@ -141,7 +123,7 @@ index 1234567..abcdefg 100755
      
      echo "Please choose a wallpaper setup option:"
      echo "1) Use your own wallpapers from ~/Pictures/wallpapers/"
-@@ -395,7 +410,7 @@ setup_wallpapers() {
+@@ -395,7 +410,7 @@
          2)
              log "INFO" "Downloading wallpapers from JaKooLit's Wallpaper Bank..."
              local temp_dir="$wallpaper_dir/temp_download"
@@ -151,7 +133,7 @@ index 1234567..abcdefg 100755
                  log "INFO" "Wallpapers downloaded successfully"
                  sudo -u "$REAL_USER" cp -r "$temp_dir"/* "$wallpaper_dir/"
                  sudo -u "$REAL_USER" rm -rf "$temp_dir"
-@@ -407,7 +422,7 @@ setup_wallpapers() {
+@@ -407,7 +422,7 @@
          3)
              log "INFO" "Downloading ukiyo-e backgrounds from SCFUCHS87..."
              local temp_dir="$wallpaper_dir/temp_download"
@@ -161,7 +143,7 @@ index 1234567..abcdefg 100755
                  log "INFO" "Ukiyo-e backgrounds downloaded successfully"
                  sudo -u "$REAL_USER" cp -r "$temp_dir"/* "$wallpaper_dir/"
                  sudo -u "$REAL_USER" rm -rf "$temp_dir"
-@@ -460,7 +475,7 @@ set_fallback_wallpaper() {
+@@ -460,7 +475,7 @@
      if [[ -n "$selected_wallpaper" ]]; then
          log "INFO" "Setting fallback wallpaper: $(basename "$selected_wallpaper")"
          if command_exists feh; then
@@ -170,7 +152,7 @@ index 1234567..abcdefg 100755
          else
              log "WARN" "feh not available for setting wallpaper"
          fi
-@@ -471,7 +486,7 @@ set_fallback_wallpaper() {
+@@ -471,7 +486,7 @@
  
  # Update font cache
  update_fonts() {
@@ -180,7 +162,7 @@ index 1234567..abcdefg 100755
          log "INFO" "Font cache updated successfully"
      else
          log "WARN" "Failed to update font cache, continuing..."
-@@ -479,6 +494,42 @@ update_fonts() {
+@@ -479,6 +494,42 @@
  }
  
  # Main installation function
@@ -223,7 +205,7 @@ index 1234567..abcdefg 100755
  main() {
      log "INFO" "=== DWM Installation Started ==="
      
-@@ -487,4 +538,12 @@ main() {
+@@ -487,4 +538,12 @@
      validate_repository
      
      # System installation
@@ -237,5 +219,3 @@ index 1234567..abcdefg 100755
 +
 +# Run main function
 +main "$@"
--- 
-2.34.1
