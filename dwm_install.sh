@@ -361,31 +361,84 @@ fc-cache -fv || {
 }
 
 echo "=== Wallpaper Setup ==="
-# Handle wallpaper installation
-if [ -d "wallpapers" ] && [ "$(ls -A wallpapers)" ]; then
-    read -p "Do you want to install the wallpapers? (y/n): " install_wallpapers
-    if [[ "$install_wallpapers" =~ ^[Yy]$ ]]; then
-        echo "Installing wallpapers..."
-        sudo -u "$REAL_USER" mkdir -p "$REAL_HOME/Pictures/wallpapers"
-        sudo -u "$REAL_USER" cp wallpapers/* "$REAL_HOME/Pictures/wallpapers/" || {
-            echo "Failed to copy wallpapers."
-        }
-        
-        # Set a default wallpaper if available
-        if [ -f "$REAL_HOME/Pictures/wallpapers/"*.{jpg,jpeg,png} ]; then
-            FIRST_WALLPAPER=$(ls "$REAL_HOME/Pictures/wallpapers/"*.{jpg,jpeg,png} 2>/dev/null | head -1)
-            if [ -n "$FIRST_WALLPAPER" ]; then
-                sudo -u "$REAL_USER" ln -sf "$FIRST_WALLPAPER" "$REAL_HOME/Pictures/wallpaper.jpg"
-                echo "Set default wallpaper: $(basename "$FIRST_WALLPAPER")"
-            fi
-        fi
-        echo "Wallpapers installed to ~/Pictures/wallpapers/"
-    else
-        echo "Skipping wallpaper installation."
-    fi
-else
-    echo "No wallpapers directory found, skipping wallpaper installation."
+# Handle wallpaper installation and ask one of three options.  Use your own files in ~/Pictures/wallpapers/, get git from https://github.com/JaKooLit/Wallpaper-Bank.git or https://github.com/SCFUCHS87/ukiyo-e_backgrounds.git.
+echo "Please choose a wallpaper setup option:"
+echo "1) Use your own wallpapers from ~/Pictures/wallpapers/"
+echo "2) Download wallpapers from JaKooLit's Wallpaper Bank"
+echo "3) Download ukiyo-e backgrounds from SCFUCHS87"
+echo "4) Skip wallpaper setup"
+read -p "Enter your choice (1/2/3/4): " wallpaper_choice
+#  Create wallpapers directory if it doesn't exist and you do not choose option 4
+if [ ! -d "$REAL_HOME/Pictures/wallpapers" ]; then
+    mkdir -p "$REAL_HOME/Pictures/wallpapers"
 fi
+#  Handle the user's choice by cloning the appropriate repository or skipping and then moving the wallpapers folder in each repository to the user's wallpapers directory
+case "$wallpaper_choice" in
+    1)
+        echo "Using your own wallpapers from ~/Pictures/wallpapers/"
+        echo "Make sure to place your wallpapers in $REAL_HOME/Pictures/wallpapers/"
+        ;;
+    2)
+        echo "Downloading wallpapers from JaKooLit's Wallpaper Bank..."
+        if git clone  https://github.com/JaKooLit/Wallpaper-Bank.git "$REAL_HOME/Pictures/wallpapers/Wallpaper-Bank"; then
+            echo "Wallpapers downloaded successfully."
+            mv "$REAL_HOME/Pictures/wallpapers/Wallpaper-Bank/"* "$REAL_HOME/Pictures/wallpapers/"
+            rm -rf "$REAL_HOME/Pictures/wallpapers/Wallpaper-Bank"
+        else
+            echo "Failed to download wallpapers from JaKooLit. Exiting."
+            exit 1
+        fi
+        ;;
+    3)
+        echo "Downloading ukiyo-e backgrounds from SCFUCHS87..."
+        if git clone https://github.com/SCFUCHS87/ukiyo-e_backgrounds.git
+    "$REAL_HOME/Pictures/wallpapers/ukiyo-e_backgrounds"; then
+                echo "Ukiyo-e backgrounds downloaded successfully."
+                mv "$REAL_HOME/Pictures/wallpapers/ukiyo-e_backgrounds/"* "$REAL_HOME/Pictures/wallpapers/"
+                rm -rf "$REAL_HOME/Pictures/wallpapers/ukiyo-e_backgrounds"
+            else
+                echo "Failed to download ukiyo-e backgrounds from SCFUCHS87. Exiting."
+                exit 1
+            fi
+        ;;
+    4)
+        echo "Skipping wallpaper setup. You can manually add wallpapers to $REAL_HOME/Pictures/wallpapers/"
+        ;;
+    *)
+        echo "Invalid choice. Skipping wallpaper setup."
+        ;;
+esac    
+
+# If you chose option 3 please install set_wallpaper_resolution.sh to $HOME/bin/set_wallpaper_resolution.sh
+echo "Setting up wallpaper using feh..."
+if [ -x "$REAL_HOME/bin/set_wallpaper_resolution.sh" ]; then
+    echo "Running resolution-aware wallpaper script..."
+    SELECTED_WALLPAPER=$("$REAL_HOME/bin/set_wallpaper_resolution.sh" --print-only)
+else
+    echo "No resolution-aware wallpaper script found. Picking random wallpaper..."
+    SELECTED_WALLPAPER=$(find "$REAL_HOME/Pictures/wallpapers" -type f \( -iname '*.jpg' -o -iname '*.png' \) | shuf -n 1)
+fi
+
+# CHMOD the script to be executable
+chmod +x "$REAL_HOME/bin/set_wallpaper_resolution.sh"
+
+# For any option chosen install wpg-feh-random.sh to /usr/bin/wpg-feh-random.sh and set it to be excutable.
+echo "Installing wpg-feh-random.sh script..."
+if [ -f "scripts/wpg-feh-random.sh" ]; then
+    cp scripts/wpg-feh-random.sh /usr/bin/wpg-feh-random.sh || {
+        echo "Failed to copy wpg-feh-random.sh script. Exiting."
+        exit 1
+    }
+    chmod +x /usr/bin/wpg-feh-random.sh || {
+        echo "Failed to set permissions for wpg-feh-random.sh. Exiting."
+        exit 1
+    }
+    echo "wpg-feh-random.sh script installed successfully."
+else
+    echo "Warning: wpg-feh-random.sh script not found in scripts/. Skipping installation."
+fi
+
+# Complete installation
 
 echo "=== Installation Complete ==="
 echo
