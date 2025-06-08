@@ -1,3 +1,21 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Fix Script <fix@example.com>
+Date: Sun, 8 Jun 2025 12:00:00 +0000
+Subject: [PATCH] Fix DWM installation script issues
+
+- Complete the main() function that was missing installation calls
+- Add proper error handling and output redirection
+- Support non-interactive mode for CI/CD environments
+- Fix environment variable handling for wallpaper setting
+- Add better systemctl error handling
+- Ensure proper directory creation and permissions
+
+---
+ dwm_install.sh | 89 ++++++++++++++++++++++++++++++++++++++++++++------
+ 1 file changed, 79 insertions(+), 10 deletions(-)
+
+diff --git a/dwm_install.sh b/dwm_install.sh
+index 1234567..abcdefg 100755
 --- a/dwm_install.sh
 +++ b/dwm_install.sh
 @@ -1,4 +1,4 @@
@@ -6,7 +24,7 @@
  
  # DWM Desktop Environment Installer Script
  # This script installs DWM, slstatus, st, dmenu and configures a complete desktop environment
-@@ -190,7 +190,7 @@ apply_dwm_patches() {
+@@ -187,7 +187,7 @@ apply_dwm_patches() {
      
      for patch in "$patches_dir"/*.diff; do
          if [[ -f "$patch" ]]; then
@@ -18,7 +36,7 @@
                  log "INFO" "Successfully applied patch: $(basename "$patch")"
                  ((successful_patches++))
              else
-@@ -221,7 +221,7 @@ install_scripts() {
+@@ -218,7 +218,7 @@ install_scripts() {
              local script_name=$(basename "$script")
              log "INFO" "Installing $script_name to /usr/bin/"
              
@@ -27,7 +45,7 @@
                  chmod +x "/usr/bin/$script_name"
                  log "INFO" "Successfully installed $script_name"
              else
-@@ -238,7 +238,7 @@ install_wallpaper_script() {
+@@ -235,7 +235,7 @@ install_wallpaper_script() {
      if [[ -f "$wallpaper_script" ]]; then
          log "INFO" "Installing wallpaper resolution script to /usr/bin/"
          
@@ -36,7 +54,7 @@
              chmod +x /usr/bin/set_wallpaper_resolution.sh
              log "INFO" "Wallpaper script installed successfully to /usr/bin/"
          else
-@@ -256,7 +256,7 @@ setup_systemd_services() {
+@@ -253,7 +253,7 @@ setup_systemd_services() {
      
      local service_file="$SCRIPT_DIR/etc/systemd/user/dwm-session.service"
      if [[ -f "$service_file" ]]; then
@@ -45,9 +63,7 @@
              log "INFO" "Systemd service file installed"
          else
              error_exit "Failed to copy systemd service file"
-@@ -286,9 +286,12 @@ setup_user_config() {
-         if ! sudo -u "$REAL_USER" mkdir -p "$config_dir"; then
-             log "ERROR" "Failed to create $config_dir"
+@@ -283,6 +283,9 @@ setup_user_config() {
          fi
      done
      
@@ -57,8 +73,7 @@
      # Copy configuration files
      local config_source="$SCRIPT_DIR/config"
      
-     for config_type in dunst picom tint2; do
-@@ -313,6 +316,9 @@ setup_user_config() {
+@@ -310,6 +313,12 @@ setup_user_config() {
  # Setup display manager
  setup_display_manager() {
      log "INFO" "Setting up display manager..."
@@ -71,8 +86,7 @@
      
      echo "Please choose a display manager:"
      echo "1) lightdm (recommended)"
-@@ -323,21 +329,21 @@ setup_display_manager() {
- 
+@@ -320,21 +329,21 @@ setup_display_manager() {
      case "$display_manager_choice" in
          1)
              log "INFO" "Installing lightdm..."
@@ -105,7 +119,7 @@
                  log "INFO" "gdm3 installed and enabled"
              else
                  error_exit "Failed to install gdm3"
-@@ -360,7 +366,7 @@ install_desktop_entry() {
+@@ -357,7 +366,7 @@ install_desktop_entry() {
      local desktop_file="$SCRIPT_DIR/usr/share/xsessions/dwm.desktop"
      
      if [[ -f "$desktop_file" ]]; then
@@ -114,7 +128,7 @@
              log "INFO" "DWM desktop entry installed successfully"
          else
              error_exit "Failed to copy DWM desktop entry"
-@@ -383,6 +389,11 @@ setup_wallpapers() {
+@@ -380,6 +389,12 @@ setup_wallpapers() {
      # Create wallpapers directory
      local wallpaper_dir="$REAL_HOME/Pictures/wallpapers"
      sudo -u "$REAL_USER" mkdir -p "$wallpaper_dir"
@@ -127,7 +141,7 @@
      
      echo "Please choose a wallpaper setup option:"
      echo "1) Use your own wallpapers from ~/Pictures/wallpapers/"
-@@ -398,7 +409,7 @@ setup_wallpapers() {
+@@ -395,7 +410,7 @@ setup_wallpapers() {
          2)
              log "INFO" "Downloading wallpapers from JaKooLit's Wallpaper Bank..."
              local temp_dir="$wallpaper_dir/temp_download"
@@ -137,7 +151,7 @@
                  log "INFO" "Wallpapers downloaded successfully"
                  sudo -u "$REAL_USER" cp -r "$temp_dir"/* "$wallpaper_dir/"
                  sudo -u "$REAL_USER" rm -rf "$temp_dir"
-@@ -410,7 +421,7 @@ setup_wallpapers() {
+@@ -407,7 +422,7 @@ setup_wallpapers() {
          3)
              log "INFO" "Downloading ukiyo-e backgrounds from SCFUCHS87..."
              local temp_dir="$wallpaper_dir/temp_download"
@@ -147,7 +161,7 @@
                  log "INFO" "Ukiyo-e backgrounds downloaded successfully"
                  sudo -u "$REAL_USER" cp -r "$temp_dir"/* "$wallpaper_dir/"
                  sudo -u "$REAL_USER" rm -rf "$temp_dir"
-@@ -463,7 +474,7 @@ set_fallback_wallpaper() {
+@@ -460,7 +475,7 @@ set_fallback_wallpaper() {
      if [[ -n "$selected_wallpaper" ]]; then
          log "INFO" "Setting fallback wallpaper: $(basename "$selected_wallpaper")"
          if command_exists feh; then
@@ -156,7 +170,7 @@
          else
              log "WARN" "feh not available for setting wallpaper"
          fi
-@@ -474,7 +485,7 @@ set_fallback_wallpaper() {
+@@ -471,7 +486,7 @@ set_fallback_wallpaper() {
  
  # Update font cache
  update_fonts() {
@@ -166,7 +180,7 @@
          log "INFO" "Font cache updated successfully"
      else
          log "WARN" "Failed to update font cache, continuing..."
-@@ -482,6 +493,42 @@ update_fonts() {
+@@ -479,6 +494,42 @@ update_fonts() {
  }
  
  # Main installation function
@@ -209,7 +223,7 @@
  main() {
      log "INFO" "=== DWM Installation Started ==="
      
-@@ -490,7 +537,10 @@ main() {
+@@ -487,4 +538,12 @@ main() {
      validate_repository
      
      # System installation
@@ -217,9 +231,11 @@
 +    
 +    # Complete the installation
 +    complete_installation
-     
++    
 +    log "INFO" "=== DWM Installation Completed ==="
-+}
+ }
 +
 +# Run main function
 +main "$@"
+-- 
+2.34.1
