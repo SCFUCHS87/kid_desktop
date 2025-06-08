@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=DWM (systemd)
+Comment=Dynamic Window Manager using shared systemd service
+Exec=/usr/bin/dwm-session-launcher
+TryExec=dwm
+Type=Application
+DesktopNames=dwm
+

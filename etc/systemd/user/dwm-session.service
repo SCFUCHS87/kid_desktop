@@ -1,0 +1,20 @@
+[Unit]
+Description=Custom DWM session startup
+After=graphical.target
+Requires=graphical.target
+
+[Service]
+ExecStart=/usr/bin/dwm-startup.sh
+Restart=on-failure
+RestartSec=2
+Environment=DISPLAY=:0
+Environment=XDG_SESSION_TYPE=x11
+Environment=XDG_CURRENT_DESKTOP=dwm
+Environment=XDG_SESSION_DESKTOP=dwm
+Environment=GDK_BACKEND=x11
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
+
