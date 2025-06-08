@@ -608,3 +608,9 @@ main() {
     validate_repository
     
     # System installation
+
+   log "INFO" "DWM installation completed successfully."
+
+}
+
+main
