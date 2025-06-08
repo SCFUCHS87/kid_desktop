@@ -138,8 +138,8 @@ install_packages() {
         build-essential git curl wget
         libx11-dev libxft-dev libxinerama-dev libxrandr-dev
         libx11-xcb-dev libxcb1-dev libxcb-util0-dev
-        xcb-util-wm xcb-util-keysyms xcb-util-cursor
-        xcb-util-image xcb-util-renderutil xcb-util-xrm
+        libxcb-util-dev libxcb-keysyms1-dev libxcb-cursor-dev
+        libxcb-image0-dev libxcb-render-util0-dev libxcb-xrm-dev
         tint2 feh alsa-utils picom lxappearance lxsession
         dunst thunar fonts-noto fonts-font-awesome xorg xinit
     )
