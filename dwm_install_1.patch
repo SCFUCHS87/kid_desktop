@@ -1,0 +1,82 @@
+diff --git a/dwm_install.sh b/dwm_install.sh
+index e69de29..a1b2c3d 100755
+--- a/dwm_install.sh
++++ b/dwm_install.sh
+@@ -1,0 +1,82 @@
++#!/bin/bash
++
++# Set user environment if needed
++USER_HOME=$(eval echo ~$USER)
++
++# Package install command per distro
++install_packages() {
++    if command -v apt &>/dev/null; then
++        sudo apt update && sudo apt install -y \
++            build-essential libx11-dev libxft-dev libxinerama-dev \
++            x11-xserver-utils git feh libpam0g-dev libxcb1-dev \
++            libxcb-res0-dev libxcb-util-dev libxcb-keysyms1-dev \
++            libxcb-icccm4-dev libxcb-image0-dev libxcb-randr0-dev \
++            libxcb-xinerama0-dev libx11-xcb-dev libev-dev libconfig-dev \
++            libdbus-1-dev libxdg-basedir-dev xcb libnotify-bin dunst \
++            lightdm lightdm-gtk-greeter xserver-xorg xrandr
++
++    elif command -v dnf &>/dev/null; then
++        sudo dnf install -y @development-tools \
++            libX11-devel libXft-devel libXinerama-devel xorg-x11-utils \
++            git feh pam-devel xcb-util-devel xcb-util-image-devel \
++            xcb-util-keysyms-devel xcb-util-wm-devel \
++            xcb-util-renderutil-devel libev-devel libconfig-devel \
++            dbus-devel libxdg-basedir-devel xcb-util dunst lightdm \
++            lightdm-gtk xorg-x11-server-Xorg xorg-x11-xinit xorg-x11-utils
++
++    elif command -v pacman &>/dev/null; then
++        sudo pacman -Syu --needed \
++            base-devel libx11 libxft libxinerama xorg-xinit git feh pam \
++            libxcb xcb-util xcb-util-image xcb-util-keysyms xcb-util-wm \
++            xcb-util-renderutil libev libconfig dbus libxdg-basedir \
++            dunst lightdm lightdm-gtk-greeter xorg-server xorg-xrandr
++    else
++        echo "Unsupported distribution"
++        exit 1
++    fi
++}
++
++# Clone necessary repos if not already present
++clone_repos() {
++    for repo in dwm st dmenu; do
++        [ ! -d "$USER_HOME/$repo" ] && git clone "https://git.suckless.org/$repo" "$USER_HOME/$repo"
++    done
++}
++
++# Build suckless tools
++build_tools() {
++    for dir in dwm st dmenu; do
++        cd "$USER_HOME/$dir"
++        make clean install || sudo make clean install
++    done
++}
++
++# Setup LightDM session
++setup_lightdm() {
++    if [ -f /etc/lightdm/lightdm.conf ]; then
++        sudo sed -i '/^#\?greeter-session=/c\greeter-session=lightdm-gtk-greeter' /etc/lightdm/lightdm.conf
++        sudo sed -i '/^#\?user-session=/c\user-session=dwm' /etc/lightdm/lightdm.conf
++    fi
++}
++
++# Enable LightDM display manager
++enable_lightdm() {
++    sudo systemctl enable lightdm
++}
++
++# Main script
++main() {
++    install_packages
++    clone_repos
++    build_tools
++    setup_lightdm
++    enable_lightdm
++    echo "DWM environment setup complete. Reboot to start DWM."
++}
++
++main
