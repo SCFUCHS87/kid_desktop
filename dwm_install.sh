@@ -2,12 +2,43 @@
 
 # DWM Desktop Environment Installer Script
 # This script installs DWM, slstatus, st, dmenu and configures a complete desktop environment
+# Enhanced with better error handling, logging, and validation
 
-set -e  # Exit on any unhandled error
+set -euo pipefail  # Exit on error, undefined vars, and pipe failures
 
-# Enable logging
-exec > >(tee -i dwm_install.log)
+# Configuration
+LOG_FILE="./dwm_install.log"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Initialize logging
+mkdir -p "$(dirname "$LOG_FILE")"
+exec > >(tee -a "$LOG_FILE")
 exec 2>&1
+
+# Logging function
+log() {
+    local level="$1"
+    shift
+    local message="$*"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    echo "[$timestamp] [$level] $message"
+    
+    if [[ "$level" == "ERROR" ]]; then
+        echo "[$level] $message" >&2
+    fi
+}
+
+# Error handling function
+error_exit() {
+    log "ERROR" "$1"
+    exit 1
+}
+
+# Check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
 
 # Cool ASCII art banner
 cat << 'EOF'
@@ -30,318 +61,370 @@ cat << 'EOF'
 
 EOF
 
-echo "🎯 Starting DWM installation process..."
-echo "📋 This script will install and configure a complete tiling window manager setup"
-echo
+log "INFO" "Starting DWM installation process..."
+log "INFO" "This script will install and configure a complete tiling window manager setup"
 
 # Check if the script is run as root
-if [ "$(id -u)" -ne 0 ]; then   
-    echo "This script must be run as root. Please use sudo."
-    exit 1
+if [[ "$(id -u)" -ne 0 ]]; then   
+    error_exit "This script must be run as root. Please use sudo."
 fi
 
 # Get the actual user who ran sudo (if applicable)
 REAL_USER=${SUDO_USER:-$(whoami)}
 REAL_HOME=$(eval echo ~$REAL_USER)
 
-echo "Installing for user: $REAL_USER"
-echo "User home directory: $REAL_HOME"
+log "INFO" "Installing for user: $REAL_USER"
+log "INFO" "User home directory: $REAL_HOME"
+log "INFO" "Script directory: $SCRIPT_DIR"
 
-# Verify required directories exist
-required_dirs=("dwm" "slstatus" "st" "dmenu" "patches" "scripts" "config" "etc" "usr")
-for dir in "${required_dirs[@]}"; do
-    if [ ! -d "$dir" ]; then
-        echo "Required directory '$dir' not found. Please ensure you're running this from the kid_desktop repository root."
-        exit 1
-    fi
-done
-
-# Update the package list
-echo "Updating package list..."
-apt update || {
-    echo "Failed to update package list. Exiting."
-    exit 1
-}
-
-# Install necessary packages
-echo "Installing build dependencies and required packages..."
-apt install -y \
-    build-essential \
-    git \
-    curl \
-    wget \
-    libx11-dev \
-    libxft-dev \
-    libxinerama-dev \
-    libxrandr-dev \
-    libx11-xcb-dev \
-    libxcb1-dev \
-    libxcb-util0-dev \
-    xcb-util-wm \
-    xcb-util-keysyms \
-    xcb-util-cursor \
-    xcb-util-image \
-    xcb-util-renderutil \
-    xcb-util-xrm \
-    tint2 \
-    feh \
-    alsa-utils \
-    picom \
-    lxappearance \
-    lxsession \
-    dunst \
-    thunar \
-
-    fonts-noto \
-    fonts-font-awesome \
-    xorg \
-    xinit || {
-    echo "Failed to install necessary packages. Exiting."
-    exit 1
-}
-
-# Detect distribution for package-specific installations
-if [ -f /etc/os-release ]; then
-    . /etc/os-release
-    DISTRO=$ID
-else
-    DISTRO="unknown"
-fi
-
-echo "Detected distribution: $DISTRO"
-
-# Install volumeicon based on distribution
-echo "Installing volumeicon..."
-case "$DISTRO" in
-    ubuntu|debian)
-        apt install -y volumeicon-alsa || {
-            echo "Failed to install volumeicon-alsa, trying alternative..."
-            apt install -y volumeicon || echo "Warning: Could not install volumeicon"
-        }
-        ;;
-    *)
-        # For MX Linux and other Debian-based distros
-        apt install -y volumeicon || {
-            echo "Failed to install volumeicon, trying alternative..."
-            apt install -y volumeicon-alsa || echo "Warning: Could not install volumeicon"
-        }
-        ;;
-esac
-
-# Try to install nerd fonts (may not be available on all systems)
-echo "Attempting to install Nerd Fonts..."
-if apt install -y fonts-nerd-fonts-complete 2>/dev/null; then
-    echo "Nerd Fonts installed successfully."
-else
-    echo "Nerd Fonts package not available, continuing without it."
-fi
-
-echo "=== Building DWM ==="
-# Change to the dwm directory
-cd dwm || { echo "Failed to change directory to dwm. Exiting."; exit 1; }
-
-# Apply patches BEFORE compilation
-echo "Applying DWM patches..."
-if ls ../patches/*.diff 1> /dev/null 2>&1; then
-    for patch in ../patches/*.diff; do
-        echo "Applying patch: $(basename "$patch")"
-        if patch -p1 < "$patch"; then
-            echo "Successfully applied patch: $(basename "$patch")"
-        else
-            echo "Failed to apply patch: $(basename "$patch"). Continuing with next patch."
+# Check essential dependencies before starting
+check_dependencies() {
+    log "INFO" "Checking essential dependencies..."
+    
+    local missing_deps=()
+    local essential_commands=("make" "gcc" "git" "apt")
+    
+    for cmd in "${essential_commands[@]}"; do
+        if ! command_exists "$cmd"; then
+            missing_deps+=("$cmd")
         fi
     done
-else
-    echo "No patches found in ../patches. Skipping patching."
-fi
-
-# Compile and install DWM
-echo "Compiling and installing DWM..."
-make clean install || {
-    echo "Failed to compile and install DWM. Exiting."
-    exit 1
-}
-
-# Clean up build files
-make clean
-
-# Move back to parent directory
-cd .. || { echo "Failed to change directory back. Exiting."; exit 1; }
-
-echo "=== Building slstatus ==="
-# Change to slstatus directory
-cd slstatus || { echo "Failed to change directory to slstatus. Exiting."; exit 1; }
-
-# Compile and install slstatus
-echo "Compiling and installing slstatus..."
-make clean install || {
-    echo "Failed to compile and install slstatus. Exiting."
-    exit 1
-}
-
-# Clean up build files
-make clean
-
-# Move back to parent directory
-cd .. || { echo "Failed to change directory back. Exiting."; exit 1; }
-
-echo "=== Building st (terminal) ==="
-# Change to st directory
-cd st || { echo "Failed to change directory to st. Exiting."; exit 1; }
-
-# Compile and install st
-echo "Compiling and installing st..."
-make clean install || {
-    echo "Failed to compile and install st. Exiting."
-    exit 1
-}
-
-# Clean up build files
-make clean
-
-# Move back to parent directory
-cd .. || { echo "Failed to change directory back. Exiting."; exit 1; }
-
-echo "=== Building dmenu ==="
-# Change to dmenu directory
-cd dmenu || { echo "Failed to change directory to dmenu. Exiting."; exit 1; }
-
-# Compile and install dmenu
-echo "Compiling and installing dmenu..."
-make clean install || {
-    echo "Failed to compile and install dmenu. Exiting."
-    exit 1
-}
-
-# Clean up build files
-make clean
-
-# Move back to parent directory
-cd .. || { echo "Failed to change directory back. Exiting."; exit 1; }
-
-echo "=== Installing Scripts ==="
-# Copy contents of scripts folder to /usr/local/bin (better practice than /usr/bin)
-echo "Copying scripts to /usr/local/bin..."   
-if [ -d "scripts" ] && [ "$(ls -A scripts)" ]; then
-    cp scripts/* /usr/local/bin/ || {
-        echo "Failed to copy scripts to /usr/local/bin. Exiting."
-        exit 1
-    }
     
-    # Set permissions for the scripts
-    echo "Setting permissions for scripts..."
-    chmod +x /usr/local/bin/* || {
-        echo "Failed to set permissions for scripts. Exiting."
-        exit 1
-    }
-else
-    echo "No scripts found to install."
-fi
-
-echo "=== Setting up systemd services ==="
-# Create /etc/systemd/user if not created and copy systemd service file
-echo "Setting up systemd user services..."
-mkdir -p /etc/systemd/user || {
-    echo "Failed to create /etc/systemd/user. Exiting."
-    exit 1
+    if [[ ${#missing_deps[@]} -ne 0 ]]; then
+        error_exit "Missing essential dependencies: ${missing_deps[*]}"
+    fi
+    
+    log "INFO" "Essential dependencies check passed"
 }
 
-if [ -f "etc/systemd/user/dwm-session.service" ]; then
-    cp etc/systemd/user/dwm-session.service /etc/systemd/user/ || {
-        echo "Failed to copy systemd service file. Exiting."
-        exit 1
-    }
-    echo "Systemd service file installed."
-else
-    echo "Warning: dwm-session.service not found, skipping."
-fi
-
-echo "=== Setting up user configuration ==="
-# Create the necessary directories under user's .config
-echo "Creating configuration directories for user $REAL_USER..."
-sudo -u "$REAL_USER" mkdir -p \
-    "$REAL_HOME/.config/dunst" \
-    "$REAL_HOME/.config/lxsession/LXDE" \
-    "$REAL_HOME/.config/lxappearance" \
-    "$REAL_HOME/.config/systemd/user" \
-    "$REAL_HOME/.config/picom" \
-    "$REAL_HOME/.config/tint2" \
-    "$REAL_HOME/.config/gtk-3.0" \
-    "$REAL_HOME/.config/gtk-4.0" || {
-    echo "Failed to create configuration directories. Exiting."
-    exit 1
+# Validate repository structure
+validate_repository() {
+    log "INFO" "Validating repository structure..."
+    
+    local required_dirs=("dwm" "slstatus" "st" "dmenu" "scripts" "config")
+    local missing_dirs=()
+    
+    for dir in "${required_dirs[@]}"; do
+        local full_path="$SCRIPT_DIR/$dir"
+        if [[ ! -d "$full_path" ]]; then
+            missing_dirs+=("$dir")
+        fi
+    done
+    
+    if [[ ${#missing_dirs[@]} -ne 0 ]]; then
+        error_exit "Missing required directories: ${missing_dirs[*]}. Please ensure you're running this from the kid_desktop repository root."
+    fi
+    
+    # Check for Makefiles in build directories
+    local build_dirs=("dwm" "slstatus" "st" "dmenu")
+    for dir in "${build_dirs[@]}"; do
+        if [[ ! -f "$SCRIPT_DIR/$dir/Makefile" ]]; then
+            log "WARN" "No Makefile found in $dir directory"
+        fi
+    done
+    
+    log "INFO" "Repository structure validation passed"
 }
 
-# Copy configuration files to user's directories
-echo "Copying configuration files..."
-if [ -d "config/dunst" ]; then
-    sudo -u "$REAL_USER" cp -r config/dunst/* "$REAL_HOME/.config/dunst/" 2>/dev/null || echo "No dunst config found"
-fi
+# Install system packages with better error handling
+install_packages() {
+    log "INFO" "Updating package list..."
+    if ! apt update; then
+        error_exit "Failed to update package list"
+    fi
 
-if [ -d "config/picom" ]; then
-    sudo -u "$REAL_USER" cp -r config/picom/* "$REAL_HOME/.config/picom/" 2>/dev/null || echo "No picom config found"
-fi
+    log "INFO" "Installing build dependencies and required packages..."
+    local packages=(
+        build-essential git curl wget
+        libx11-dev libxft-dev libxinerama-dev libxrandr-dev
+        libx11-xcb-dev libxcb1-dev libxcb-util0-dev
+        xcb-util-wm xcb-util-keysyms xcb-util-cursor
+        xcb-util-image xcb-util-renderutil xcb-util-xrm
+        tint2 feh alsa-utils picom lxappearance lxsession
+        dunst thunar fonts-noto fonts-font-awesome xorg xinit
+    )
+    
+    if ! apt install -y "${packages[@]}"; then
+        error_exit "Failed to install necessary packages"
+    fi
 
-if [ -d "config/tint2" ]; then
-    sudo -u "$REAL_USER" cp -r config/tint2/* "$REAL_HOME/.config/tint2/" 2>/dev/null || echo "No tint2 config found"
-fi
+    # Detect distribution for package-specific installations
+    local distro="unknown"
+    if [[ -f /etc/os-release ]]; then
+        source /etc/os-release
+        distro="$ID"
+    fi
 
-echo "=== Display Manager Setup ==="
-# Choose display manager
-echo "Please choose a display manager:"
-echo "1) lightdm (recommended)"
-echo "2) sddm"
-echo "3) gdm3"
-echo "4) Skip display manager setup (use startx)"
-read -p "Enter your choice (1/2/3/4): " display_manager_choice
+    log "INFO" "Detected distribution: $distro"
 
-case "$display_manager_choice" in
-    1)
-        echo "Installing lightdm..."
-        apt install -y lightdm lightdm-gtk-greeter || {
-            echo "Failed to install lightdm. Exiting."
-            exit 1
-        }
-        systemctl enable lightdm
-        ;;
-    2)
-        echo "Installing sddm..."
-        apt install -y sddm || {
-            echo "Failed to install sddm. Exiting."
-            exit 1
-        }
-        systemctl enable sddm
-        ;;
-    3)
-        echo "Installing gdm3..."
-        apt install -y gdm3 || {
-            echo "Failed to install gdm3. Exiting."
-            exit 1
-        }
-        systemctl enable gdm3
-        ;;
-    4)
-        echo "Skipping display manager installation."
-        echo "You can start DWM manually with 'startx' command."
-        ;;
-    *)
-        echo "Invalid choice. Skipping display manager setup."
-        ;;
-esac
+    # Install volumeicon based on distribution
+    log "INFO" "Installing volumeicon..."
+    case "$distro" in
+        ubuntu|debian)
+            apt install -y volumeicon-alsa || apt install -y volumeicon || log "WARN" "Could not install volumeicon"
+            ;;
+        *)
+            apt install -y volumeicon || apt install -y volumeicon-alsa || log "WARN" "Could not install volumeicon"
+            ;;
+    esac
 
-# Install desktop entry for DWM
-echo "Installing DWM desktop entry..."
-if [ -f "usr/share/xsessions/dwm.desktop" ]; then
+    # Try to install nerd fonts (may not be available on all systems)
+    log "INFO" "Attempting to install Nerd Fonts..."
+    if apt install -y fonts-nerd-fonts-complete 2>/dev/null; then
+        log "INFO" "Nerd Fonts installed successfully"
+    else
+        log "INFO" "Nerd Fonts package not available, continuing without it"
+    fi
+}
+
+# Build component with error handling
+build_component() {
+    local component="$1"
+    local component_dir="$SCRIPT_DIR/$component"
+    
+    log "INFO" "Building $component..."
+    
+    if [[ ! -d "$component_dir" ]]; then
+        error_exit "Component directory not found: $component_dir"
+    fi
+    
+    cd "$component_dir" || error_exit "Failed to change to $component directory"
+    
+    # Apply patches if this is DWM and patches exist
+    if [[ "$component" == "dwm" ]]; then
+        apply_dwm_patches
+    fi
+    
+    # Clean previous builds
+    if ! make clean 2>/dev/null; then
+        log "WARN" "No previous build to clean for $component"
+    fi
+    
+    # Compile and install
+    if ! make install; then
+        error_exit "Failed to compile and install $component"
+    fi
+    
+    # Clean build files
+    make clean 2>/dev/null || true
+    
+    log "INFO" "$component built and installed successfully"
+    
+    cd "$SCRIPT_DIR" || error_exit "Failed to return to script directory"
+}
+
+# Apply DWM patches
+apply_dwm_patches() {
+    local patches_dir="$SCRIPT_DIR/patches"
+    
+    if [[ ! -d "$patches_dir" ]]; then
+        log "INFO" "No patches directory found, skipping patch application"
+        return 0
+    fi
+    
+    log "INFO" "Applying DWM patches..."
+    
+    local patch_count=0
+    local successful_patches=0
+    
+    for patch in "$patches_dir"/*.diff; do
+        if [[ -f "$patch" ]]; then
+            ((patch_count++))
+            log "INFO" "Applying patch: $(basename "$patch")"
+            
+            if patch -p1 < "$patch"; then
+                log "INFO" "Successfully applied patch: $(basename "$patch")"
+                ((successful_patches++))
+            else
+                log "WARN" "Failed to apply patch: $(basename "$patch")"
+            fi
+        fi
+    done
+    
+    if [[ $patch_count -eq 0 ]]; then
+        log "INFO" "No patches found in $patches_dir"
+    else
+        log "INFO" "Applied $successful_patches out of $patch_count patches"
+    fi
+}
+
+# Install scripts with proper error handling
+install_scripts() {
+    log "INFO" "Installing scripts..."
+    
+    local scripts_dir="$SCRIPT_DIR/scripts"
+    
+    if [[ ! -d "$scripts_dir" ]] || [[ -z "$(ls -A "$scripts_dir" 2>/dev/null)" ]]; then
+        log "WARN" "No scripts found to install"
+        return 0
+    fi
+    
+    # Copy scripts to /usr/bin/ (changed from /usr/local/bin/ for system-wide access)
+    for script in "$scripts_dir"/*; do
+        if [[ -f "$script" ]]; then
+            local script_name=$(basename "$script")
+            log "INFO" "Installing $script_name to /usr/bin/"
+            
+            if cp "$script" "/usr/bin/$script_name"; then
+                chmod +x "/usr/bin/$script_name"
+                log "INFO" "Successfully installed $script_name"
+            else
+                log "ERROR" "Failed to install $script_name"
+            fi
+        fi
+    done
+    
+    # Special handling for wallpaper script
+    install_wallpaper_script
+}
+
+# Install wallpaper script specifically
+install_wallpaper_script() {
+    local wallpaper_script="$SCRIPT_DIR/scripts/set_wallpaper_resolution.sh"
+    
+    if [[ -f "$wallpaper_script" ]]; then
+        log "INFO" "Installing wallpaper resolution script to /usr/bin/"
+        
+        if cp "$wallpaper_script" /usr/bin/set_wallpaper_resolution.sh; then
+            chmod +x /usr/bin/set_wallpaper_resolution.sh
+            log "INFO" "Wallpaper script installed successfully to /usr/bin/"
+        else
+            log "ERROR" "Failed to install wallpaper script"
+        fi
+    else
+        log "WARN" "Wallpaper script not found at $wallpaper_script"
+    fi
+}
+
+# Setup systemd services
+setup_systemd_services() {
+    log "INFO" "Setting up systemd services..."
+    
+    mkdir -p /etc/systemd/user || error_exit "Failed to create /etc/systemd/user"
+    
+    local service_file="$SCRIPT_DIR/etc/systemd/user/dwm-session.service"
+    if [[ -f "$service_file" ]]; then
+        if cp "$service_file" /etc/systemd/user/; then
+            log "INFO" "Systemd service file installed"
+        else
+            error_exit "Failed to copy systemd service file"
+        fi
+    else
+        log "WARN" "dwm-session.service not found, skipping"
+    fi
+}
+
+# Setup user configuration
+setup_user_config() {
+    log "INFO" "Setting up user configuration for $REAL_USER..."
+    
+    # Create configuration directories
+    local config_dirs=(
+        "$REAL_HOME/.config/dunst"
+        "$REAL_HOME/.config/lxsession/LXDE"
+        "$REAL_HOME/.config/lxappearance"
+        "$REAL_HOME/.config/systemd/user"
+        "$REAL_HOME/.config/picom"
+        "$REAL_HOME/.config/tint2"
+        "$REAL_HOME/.config/gtk-3.0"
+        "$REAL_HOME/.config/gtk-4.0"
+    )
+    
+    for config_dir in "${config_dirs[@]}"; do
+        if ! sudo -u "$REAL_USER" mkdir -p "$config_dir"; then
+            log "ERROR" "Failed to create $config_dir"
+        fi
+    done
+    
+    # Copy configuration files
+    local config_source="$SCRIPT_DIR/config"
+    
+    for config_type in dunst picom tint2; do
+        local source_dir="$config_source/$config_type"
+        local target_dir="$REAL_HOME/.config/$config_type"
+        
+        if [[ -d "$source_dir" ]]; then
+            log "INFO" "Copying $config_type configuration..."
+            if sudo -u "$REAL_USER" cp -r "$source_dir"/* "$target_dir/" 2>/dev/null; then
+                log "INFO" "$config_type configuration copied successfully"
+            else
+                log "WARN" "Failed to copy $config_type configuration"
+            fi
+        else
+            log "INFO" "No $config_type configuration found"
+        fi
+    done
+    
+    # Fix ownership of all config files
+    chown -R "$REAL_USER:$REAL_USER" "$REAL_HOME/.config" 2>/dev/null || log "WARN" "Could not fix config file ownership"
+}
+
+# Setup display manager
+setup_display_manager() {
+    log "INFO" "Setting up display manager..."
+    
+    echo "Please choose a display manager:"
+    echo "1) lightdm (recommended)"
+    echo "2) sddm"
+    echo "3) gdm3"
+    echo "4) Skip display manager setup (use startx)"
+    read -p "Enter your choice (1/2/3/4): " display_manager_choice
+
+    case "$display_manager_choice" in
+        1)
+            log "INFO" "Installing lightdm..."
+            if apt install -y lightdm lightdm-gtk-greeter; then
+                systemctl enable lightdm
+                log "INFO" "lightdm installed and enabled"
+            else
+                error_exit "Failed to install lightdm"
+            fi
+            ;;
+        2)
+            log "INFO" "Installing sddm..."
+            if apt install -y sddm; then
+                systemctl enable sddm
+                log "INFO" "sddm installed and enabled"
+            else
+                error_exit "Failed to install sddm"
+            fi
+            ;;
+        3)
+            log "INFO" "Installing gdm3..."
+            if apt install -y gdm3; then
+                systemctl enable gdm3
+                log "INFO" "gdm3 installed and enabled"
+            else
+                error_exit "Failed to install gdm3"
+            fi
+            ;;
+        4)
+            log "INFO" "Skipping display manager installation"
+            log "INFO" "You can start DWM manually with 'startx' command"
+            ;;
+        *)
+            log "WARN" "Invalid choice. Skipping display manager setup"
+            ;;
+    esac
+}
+
+# Install desktop entry
+install_desktop_entry() {
+    log "INFO" "Installing DWM desktop entry..."
+    
     mkdir -p /usr/share/xsessions
-    cp usr/share/xsessions/dwm.desktop /usr/share/xsessions/ || {
-        echo "Failed to copy DWM desktop entry. Exiting."
-        exit 1
-    }
-    echo "DWM desktop entry installed successfully."
-else
-    echo "Warning: dwm.desktop file not found in usr/share/xsessions/, creating default..."
-    mkdir -p /usr/share/xsessions
-    cat > /usr/share/xsessions/dwm.desktop << 'EOF'
+    
+    local desktop_file="$SCRIPT_DIR/usr/share/xsessions/dwm.desktop"
+    
+    if [[ -f "$desktop_file" ]]; then
+        if cp "$desktop_file" /usr/share/xsessions/; then
+            log "INFO" "DWM desktop entry installed successfully"
+        else
+            error_exit "Failed to copy DWM desktop entry"
+        fi
+    else
+        log "WARN" "dwm.desktop file not found, creating default..."
+        cat > /usr/share/xsessions/dwm.desktop << 'EOF'
 [Desktop Entry]
 Encoding=UTF-8
 Name=DWM
@@ -350,115 +433,126 @@ Exec=dwm
 Icon=dwm
 Type=XSession
 EOF
-    echo "Default DWM desktop entry created."
-fi
-
-echo "=== Font Setup ==="
-# Update the font cache
-echo "Updating font cache..."
-fc-cache -fv || {
-    echo "Warning: Failed to update font cache, continuing..."
+        log "INFO" "Default DWM desktop entry created"
+    fi
 }
 
-echo "=== Wallpaper Setup ==="
-# Handle wallpaper installation and ask one of three options.  Use your own files in ~/Pictures/wallpapers/, get git from https://github.com/JaKooLit/Wallpaper-Bank.git or https://github.com/SCFUCHS87/ukiyo-e_backgrounds.git.
-echo "Please choose a wallpaper setup option:"
-echo "1) Use your own wallpapers from ~/Pictures/wallpapers/"
-echo "2) Download wallpapers from JaKooLit's Wallpaper Bank"
-echo "3) Download ukiyo-e backgrounds from SCFUCHS87"
-echo "4) Skip wallpaper setup"
-read -p "Enter your choice (1/2/3/4): " wallpaper_choice
-#  Create wallpapers directory if it doesn't exist and you do not choose option 4
-if [ ! -d "$REAL_HOME/Pictures/wallpapers" ]; then
-    mkdir -p "$REAL_HOME/Pictures/wallpapers"
-fi
-#  Handle the user's choice by cloning the appropriate repository or skipping and then moving the wallpapers folder in each repository to the user's wallpapers directory
-case "$wallpaper_choice" in
-    1)
-        echo "Using your own wallpapers from ~/Pictures/wallpapers/"
-        echo "Make sure to place your wallpapers in $REAL_HOME/Pictures/wallpapers/"
-        ;;
-    2)
-        echo "Downloading wallpapers from JaKooLit's Wallpaper Bank..."
-        if git clone  https://github.com/JaKooLit/Wallpaper-Bank.git "$REAL_HOME/Pictures/wallpapers/Wallpaper-Bank"; then
-            echo "Wallpapers downloaded successfully."
-            mv "$REAL_HOME/Pictures/wallpapers/Wallpaper-Bank/"* "$REAL_HOME/Pictures/wallpapers/"
-            rm -rf "$REAL_HOME/Pictures/wallpapers/Wallpaper-Bank"
-        else
-            echo "Failed to download wallpapers from JaKooLit. Exiting."
-            exit 1
-        fi
-        ;;
-    3)
-        echo "Downloading ukiyo-e backgrounds from SCFUCHS87..."
-        if git clone https://github.com/SCFUCHS87/ukiyo-e_backgrounds.git
-    "$REAL_HOME/Pictures/wallpapers/ukiyo-e_backgrounds"; then
-                echo "Ukiyo-e backgrounds downloaded successfully."
-                mv "$REAL_HOME/Pictures/wallpapers/ukiyo-e_backgrounds/"* "$REAL_HOME/Pictures/wallpapers/"
-                rm -rf "$REAL_HOME/Pictures/wallpapers/ukiyo-e_backgrounds"
+# Setup wallpapers
+setup_wallpapers() {
+    log "INFO" "Setting up wallpapers..."
+    
+    # Create wallpapers directory
+    local wallpaper_dir="$REAL_HOME/Pictures/wallpapers"
+    sudo -u "$REAL_USER" mkdir -p "$wallpaper_dir"
+    
+    echo "Please choose a wallpaper setup option:"
+    echo "1) Use your own wallpapers from ~/Pictures/wallpapers/"
+    echo "2) Download wallpapers from JaKooLit's Wallpaper Bank"
+    echo "3) Download ukiyo-e backgrounds from SCFUCHS87"
+    echo "4) Skip wallpaper setup"
+    read -p "Enter your choice (1/2/3/4): " wallpaper_choice
+    
+    case "$wallpaper_choice" in
+        1)
+            log "INFO" "Using your own wallpapers from ~/Pictures/wallpapers/"
+            log "INFO" "Make sure to place your wallpapers in $wallpaper_dir"
+            ;;
+        2)
+            log "INFO" "Downloading wallpapers from JaKooLit's Wallpaper Bank..."
+            local temp_dir="$wallpaper_dir/temp_download"
+            
+            if sudo -u "$REAL_USER" git clone https://github.com/JaKooLit/Wallpaper-Bank.git "$temp_dir"; then
+                log "INFO" "Wallpapers downloaded successfully"
+                sudo -u "$REAL_USER" cp -r "$temp_dir"/* "$wallpaper_dir/"
+                sudo -u "$REAL_USER" rm -rf "$temp_dir"
+                log "INFO" "Wallpapers installed to $wallpaper_dir"
             else
-                echo "Failed to download ukiyo-e backgrounds from SCFUCHS87. Exiting."
-                exit 1
+                error_exit "Failed to download wallpapers from JaKooLit"
             fi
-        ;;
-    4)
-        echo "Skipping wallpaper setup. You can manually add wallpapers to $REAL_HOME/Pictures/wallpapers/"
-        ;;
-    *)
-        echo "Invalid choice. Skipping wallpaper setup."
-        ;;
-esac    
+            ;;
+        3)
+            log "INFO" "Downloading ukiyo-e backgrounds from SCFUCHS87..."
+            local temp_dir="$wallpaper_dir/temp_download"
+            
+            if sudo -u "$REAL_USER" git clone https://github.com/SCFUCHS87/ukiyo-e_backgrounds.git "$temp_dir"; then
+                log "INFO" "Ukiyo-e backgrounds downloaded successfully"
+                sudo -u "$REAL_USER" cp -r "$temp_dir"/* "$wallpaper_dir/"
+                sudo -u "$REAL_USER" rm -rf "$temp_dir"
+                log "INFO" "Ukiyo-e backgrounds installed to $wallpaper_dir"
+            else
+                error_exit "Failed to download ukiyo-e backgrounds from SCFUCHS87"
+            fi
+            ;;
+        4)
+            log "INFO" "Skipping wallpaper setup"
+            log "INFO" "You can manually add wallpapers to $wallpaper_dir"
+            ;;
+        *)
+            log "WARN" "Invalid choice. Skipping wallpaper setup"
+            ;;
+    esac
+    
+    # Set initial wallpaper if wallpaper script is available
+    set_initial_wallpaper "$wallpaper_dir"
+}
 
-# If you chose option 3 please install set_wallpaper_resolution.sh to $HOME/bin/set_wallpaper_resolution.sh
-echo "Setting up wallpaper using feh..."
-if [ -x "$REAL_HOME/bin/set_wallpaper_resolution.sh" ]; then
-    echo "Running resolution-aware wallpaper script..."
-    SELECTED_WALLPAPER=$("$REAL_HOME/bin/set_wallpaper_resolution.sh" --print-only)
-else
-    echo "No resolution-aware wallpaper script found. Picking random wallpaper..."
-    SELECTED_WALLPAPER=$(find "$REAL_HOME/Pictures/wallpapers" -type f \( -iname '*.jpg' -o -iname '*.png' \) | shuf -n 1)
-fi
+# Set initial wallpaper
+set_initial_wallpaper() {
+    local wallpaper_dir="$1"
+    
+    log "INFO" "Setting initial wallpaper..."
+    
+    # Check if wallpaper script is available in /usr/bin/
+    if [[ -x "/usr/bin/set_wallpaper_resolution.sh" ]]; then
+        log "INFO" "Using resolution-aware wallpaper script..."
+        if sudo -u "$REAL_USER" DISPLAY=:0 /usr/bin/set_wallpaper_resolution.sh --print-only 2>/dev/null; then
+            log "INFO" "Wallpaper script executed successfully"
+        else
+            log "WARN" "Wallpaper script execution failed, using fallback"
+            set_fallback_wallpaper "$wallpaper_dir"
+        fi
+    else
+        log "INFO" "Wallpaper script not found, using fallback method"
+        set_fallback_wallpaper "$wallpaper_dir"
+    fi
+}
 
-# CHMOD the script to be executable
-chmod +x "$REAL_HOME/bin/set_wallpaper_resolution.sh"
+# Set fallback wallpaper
+set_fallback_wallpaper() {
+    local wallpaper_dir="$1"
+    
+    # Find a random wallpaper
+    local selected_wallpaper
+    selected_wallpaper=$(find "$wallpaper_dir" -type f \( -iname '*.jpg' -o -iname '*.png' \) 2>/dev/null | shuf -n 1)
+    
+    if [[ -n "$selected_wallpaper" ]]; then
+        log "INFO" "Setting fallback wallpaper: $(basename "$selected_wallpaper")"
+        if command_exists feh; then
+            sudo -u "$REAL_USER" DISPLAY=:0 feh --bg-scale "$selected_wallpaper" 2>/dev/null || log "WARN" "Failed to set wallpaper with feh"
+        else
+            log "WARN" "feh not available for setting wallpaper"
+        fi
+    else
+        log "WARN" "No wallpaper files found in $wallpaper_dir"
+    fi
+}
 
-# For any option chosen install wpg-feh-random.sh to /usr/bin/wpg-feh-random.sh and set it to be excutable.
-echo "Installing wpg-feh-random.sh script..."
-if [ -f "scripts/wpg-feh-random.sh" ]; then
-    cp scripts/wpg-feh-random.sh /usr/bin/wpg-feh-random.sh || {
-        echo "Failed to copy wpg-feh-random.sh script. Exiting."
-        exit 1
-    }
-    chmod +x /usr/bin/wpg-feh-random.sh || {
-        echo "Failed to set permissions for wpg-feh-random.sh. Exiting."
-        exit 1
-    }
-    echo "wpg-feh-random.sh script installed successfully."
-else
-    echo "Warning: wpg-feh-random.sh script not found in scripts/. Skipping installation."
-fi
+# Update font cache
+update_fonts() {
+    log "INFO" "Updating font cache..."
+    if fc-cache -fv; then
+        log "INFO" "Font cache updated successfully"
+    else
+        log "WARN" "Failed to update font cache, continuing..."
+    fi
+}
 
-# Complete installation
-
-echo "=== Installation Complete ==="
-echo
-echo "✅ DWM desktop environment installation completed successfully!"
-echo
-echo "=== Next Steps ==="
-echo "1. Reboot your system"
-echo "2. Select 'DWM' from your login screen"
-echo "3. Use these key bindings to get started:"
-echo "   - Alt+p: Launch dmenu (application launcher)"
-echo "   - Alt+Shift+Enter: Open terminal (st)"
-echo "   - Alt+Shift+c: Close window"
-echo "   - Alt+Shift+q: Quit DWM"
-echo
-echo "=== Configuration Files ==="
-echo "- DWM config: Edit dwm/config.h and recompile"
-echo "- User configs: ~/.config/picom/, ~/.config/dunst/, etc."
-echo "- Wallpapers: ~/Pictures/wallpapers/"
-echo
-echo "=== Logs ==="
-echo "Installation log saved to: $(pwd)/dwm_install.log"
-echo
-echo "Enjoy your new DWM desktop environment!"
+# Main installation function
+main() {
+    log "INFO" "=== DWM Installation Started ==="
+    
+    # Pre-installation checks
+    check_dependencies
+    validate_repository
+    
+    # System installation
