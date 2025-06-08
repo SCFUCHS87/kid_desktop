@@ -57,75 +57,45 @@
      for script in "$scripts_dir"/*; do
          if [[ -f "$script" ]]; then
              local script_name=$(basename "$script")
-@@ -456,7 +444,22 @@
+@@ -456,29 +444,29 @@
  
  # Main installation function
  complete_installation() {
      log "INFO" "Completing installation steps..."
-+    
-+    # Build and install components
-+    local components=("dwm" "slstatus" "st" "dmenu")
-+    for component in "${components[@]}"; do
-+        build_component "$component"
-+    done
-+    
-+    # Install scripts
-+    install_scripts
-+    
-+    # Setup systemd services
-+    setup_systemd_services
-+    
-+    # Setup user configuration
-+    setup_user_config
-+    
-+    # Install desktop entry
-+    install_desktop_entry
-+    
-+    # Setup display manager
-+    setup_display_manager
-+    
-+    # Setup wallpapers
-+    setup_wallpapers
-+    
-+    # Update fonts
-+    update_fonts
-+    
-+    log "INFO" "Installation completed successfully!"
-+    log "INFO" "You can now log out and select DWM from your display manager"
-+    log "INFO" "Or use 'startx' if no display manager was installed"
- }
--    
--    # Build and install components
--    local components=("dwm" "slstatus" "st" "dmenu")
--    for component in "${components[@]}"; do
--        build_component "$component"
--    done
--    
--    # Install scripts
--    install_scripts
--    
--    # Setup systemd services
--    setup_systemd_services
--    
--    # Setup user configuration
--    setup_user_config
--    
--    # Install desktop entry
--    install_desktop_entry
--    
--    # Setup display manager
--    setup_display_manager
--    
--    # Setup wallpapers
--    setup_wallpapers
--    
--    # Update fonts
--    update_fonts
--    
--    log "INFO" "Installation completed successfully!"
--    log "INFO" "You can now log out and select DWM from your display manager"
--    log "INFO" "Or use 'startx' if no display manager was installed"
 -}
+-    
++    
+     # Build and install components
+     local components=("dwm" "slstatus" "st" "dmenu")
+     for component in "${components[@]}"; do
+         build_component "$component"
+     done
+     
+     # Install scripts
+     install_scripts
+     
+     # Setup systemd services
+     setup_systemd_services
+     
+     # Setup user configuration
+     setup_user_config
+     
+     # Install desktop entry
+     install_desktop_entry
+     
+     # Setup display manager
+     setup_display_manager
+     
+     # Setup wallpapers
+     setup_wallpapers
+     
+     # Update fonts
+     update_fonts
+     
+     log "INFO" "Installation completed successfully!"
+     log "INFO" "You can now log out and select DWM from your display manager"
+     log "INFO" "Or use 'startx' if no display manager was installed"
++}
  
  # Main function
  main() {
