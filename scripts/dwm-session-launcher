@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+# Check if systemd --user is functional
+if systemctl --user is-active >/dev/null 2>&1; then
+    echo "Starting via systemd..." >&2
+    systemctl --user start dwm-session.service
+    # Wait for dwm to be executed from within the service
+    exit 0
+else
+    echo "Systemd unavailable. Falling back to direct script..." >&2
+    exec /usr/bin/dwm-startup.sh
+fi
